@@ -2,6 +2,7 @@ bazel-*
 .vs/
 .idea/
 lib/ksp
+lib/mono-4.5
 KRPC.userprefs
 bin
 obj
