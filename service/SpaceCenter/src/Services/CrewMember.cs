@@ -108,5 +108,23 @@ namespace KRPC.SpaceCenter.Services
             get { return InternalCrewMember.veteran; }
             set { InternalCrewMember.veteran = value; }
         }
+
+		[KRPCProperty]
+		public string Trait
+		{
+			get { return InternalCrewMember.trait; }
+		}
+
+		[KRPCProperty]
+		public string Gender
+		{
+			get { return InternalCrewMember.gender.ToString(); }
+		}
+
+		[KRPCProperty]
+		public string RosterStatus
+		{
+			get { return InternalCrewMember.rosterStatus.ToString(); }
+		}
     }
 }

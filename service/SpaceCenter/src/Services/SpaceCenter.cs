@@ -216,7 +216,7 @@ namespace KRPC.SpaceCenter.Services
         /// </summary>
         [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLargeClassesRule")]
         sealed class LaunchConfig {
-            public LaunchConfig(string craftDirectory, string name, string launchSite, bool recover) {
+            public LaunchConfig(string craftDirectory, string name, string launchSite, bool recover, string crew) {
                 LaunchSite = launchSite;
                 Recover = recover;
                 // Load the vessel and its default crew
@@ -231,7 +231,28 @@ namespace KRPC.SpaceCenter.Services
                 if (template == null)
                     throw new InvalidOperationException("Failed to load template for vessel");
                 manifest = VesselCrewManifest.FromConfigNode(template.config);
-                manifest = HighLogic.CurrentGame.CrewRoster.DefaultCrewForVessel (template.config, manifest);
+
+				if (string.IsNullOrEmpty(crew))
+				{
+					manifest = HighLogic.CurrentGame.CrewRoster.DefaultCrewForVessel(template.config, manifest);
+				}
+				else
+				{
+					var crewNames = crew.Split(';');
+					KerbalRoster shipRoster = new KerbalRoster(HighLogic.CurrentGame.Mode);
+
+					foreach (var crewName in crewNames)
+					{
+						var crewMember = GetKerbal(crewName);
+
+						if (crewMember != null && crewMember.InternalCrewMember.rosterStatus == ProtoCrewMember.RosterStatus.Available)
+						{
+							shipRoster.AddCrewMember(crewMember.InternalCrewMember);
+						}
+					}
+
+					manifest = shipRoster.DefaultCrewForVessel(template.config, manifest);
+				}
 
                 facility = (craftDirectory == "SPH") ? SpaceCenterFacility.SpaceplaneHangar : SpaceCenterFacility.VehicleAssemblyBuilding;
                 facilityLevel = ScenarioUpgradeableFacilities.GetFacilityLevel(facility);
@@ -307,14 +328,15 @@ namespace KRPC.SpaceCenter.Services
         /// <c>"Runway"</c>.</param>
         /// <param name="recover">If true and there is a vessel on the launch site,
         /// recover it before launching.</param>
+		/// <param name="crew">a semicolon-separated list of crewmemmbers</param>
         /// <remarks>
         /// Throws an exception if any of the games pre-flight checks fail.
         /// </remarks>
         [KRPCProcedure]
-        public static void LaunchVessel (string craftDirectory, string name, string launchSite, bool recover = true)
+        public static void LaunchVessel (string craftDirectory, string name, string launchSite, bool recover = true, string crew = null)
         {
-            var config = new LaunchConfig(craftDirectory, name, launchSite, recover);
-            config.RunPreFlightChecks();
+            var config = new LaunchConfig(craftDirectory, name, launchSite, recover, crew);
+			config.RunPreFlightChecks();
             throw new YieldException (new ParameterizedContinuationVoid<LaunchConfig> (WaitForVesselPreFlightComplete, config));
         }
 
@@ -352,7 +374,7 @@ namespace KRPC.SpaceCenter.Services
                 throw new YieldException (new ParameterizedContinuationVoid<LaunchConfig> (WaitForVesselRecovery, config));
             config.RemoveRecoveryEventHandlers ();
 
-            FlightDriver.StartWithNewLaunch(config.Path, EditorLogic.FlagURL, config.LaunchSite, config.manifest);
+			FlightDriver.StartWithNewLaunch(config.Path, EditorLogic.FlagURL, config.LaunchSite, config.manifest);
             throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
         }
 
@@ -412,8 +434,8 @@ namespace KRPC.SpaceCenter.Services
             var game = GamePersistence.LoadGame (name, HighLogic.SaveFolder, true, false);
             if (game == null || game.flightState == null || !game.compatible)
                 throw new ArgumentException ("Failed to load " + name);
-            FlightDriver.StartAndFocusVessel (game, game.flightState.activeVesselIdx);
-            throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
+			FlightDriver.StartAndFocusVessel (game, game.flightState.activeVesselIdx);
+			throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
         }
 
         /// <summary>
@@ -439,6 +461,15 @@ namespace KRPC.SpaceCenter.Services
         {
             Load ("quicksave");
         }
+
+		[KRPCProcedure]
+		public static void RevertToLaunch()
+		{
+			if (FlightDriver.CanRevert)
+			{
+				FlightDriver.RevertToLaunch();
+			}
+		}
 
         /// <summary>
         /// An object that can be used to control the camera.
@@ -872,5 +903,46 @@ namespace KRPC.SpaceCenter.Services
         public static bool FARAvailable {
             get { return ExternalAPI.FAR.IsAvailable; }
         }
+
+		[KRPCProcedure]
+		public static void SetFunds(double funds)
+		{
+			if (Funding.Instance != null)
+			{
+				Funding.Instance.SetFunds(funds, TransactionReasons.Cheating);
+			}
+		}
+
+		[KRPCProcedure]
+		public static void CreateKerbal(string name, string job, bool male)
+		{
+			ProtoCrewMember protoKerbal = HighLogic.CurrentGame.CrewRoster.GetNewKerbal();
+			protoKerbal.ChangeName(name);
+			protoKerbal.gender = male ? ProtoCrewMember.Gender.Male : ProtoCrewMember.Gender.Female;
+			KerbalRoster.SetExperienceTrait(protoKerbal, job);
+
+			if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER)
+			{
+				Funding.Instance.AddFunds(-GameVariables.Instance.GetRecruitHireCost(HighLogic.CurrentGame.CrewRoster.GetActiveCrewCount()), TransactionReasons.Cheating);
+			}
+			else
+			{
+				protoKerbal.experienceLevel = 5;
+				protoKerbal.experience = 9999;
+			}
+		}
+
+		[KRPCProcedure(Nullable=true)]
+		public static CrewMember GetKerbal(string name)
+		{
+			var protoCrewMember = HighLogic.CurrentGame.CrewRoster.Crew.FirstOrDefault(pcm => pcm.name == name);
+			return protoCrewMember == null ? null : new CrewMember(protoCrewMember);
+		}
+
+		[KRPCProcedure]
+		public static void LoadSpaceCenter()
+		{
+			HighLogic.LoadScene(GameScenes.SPACECENTER);
+		}
     }
 }
