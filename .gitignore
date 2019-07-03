@@ -9,3 +9,5 @@ obj
 KSP.log
 PartDatabase.cfg
 
+/krpctools-0.4.8
+/packages/Google.Protobuf.3.6.1
