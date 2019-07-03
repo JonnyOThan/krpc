@@ -347,6 +347,7 @@ namespace KRPC.SpaceCenter.Services
         [KRPCProcedure]
         public static void LaunchVessel (string craftDirectory, string name, string launchSite, bool recover = true, string crew = null)
         {
+			CloseDialogs();
             var config = new LaunchConfig(craftDirectory, name, launchSite, recover, crew);
 			config.RunPreFlightChecks();
             throw new YieldException (new ParameterizedContinuationVoid<LaunchConfig> (WaitForVesselPreFlightComplete, config));
@@ -443,6 +444,7 @@ namespace KRPC.SpaceCenter.Services
         [KRPCProcedure]
         public static void Load (string name)
         {
+			CloseDialogs();
             var game = GamePersistence.LoadGame (name, HighLogic.SaveFolder, true, false);
             if (game == null || game.flightState == null || !game.compatible)
                 throw new ArgumentException ("Failed to load " + name);
@@ -479,7 +481,20 @@ namespace KRPC.SpaceCenter.Services
 		{
 			if (FlightDriver.CanRevert)
 			{
+				CloseDialogs();
 				FlightDriver.RevertToLaunch();
+			}
+		}
+
+		public static void CloseDialogs()
+		{
+			KSP.UI.Dialogs.FlightResultsDialog.Close();
+
+			var recoveryDialog = GameObject.FindObjectOfType<KSP.UI.Screens.MissionRecoveryDialog>();
+
+			if (recoveryDialog != null)
+			{
+				KRPC.Utils.Logger.WriteLine("found recovery dialog");
 			}
 		}
 
