@@ -943,8 +943,7 @@ namespace KRPC.SpaceCenter.Services
 		[KRPCProcedure]
 		public static void CreateKerbal(string name, string job, bool male)
 		{
-			ProtoCrewMember protoKerbal = HighLogic.CurrentGame.CrewRoster.GetNewKerbal();
-			protoKerbal.ChangeName(name);
+			ProtoCrewMember protoKerbal = new ProtoCrewMember(ProtoCrewMember.KerbalType.Crew, name);
 			protoKerbal.gender = male ? ProtoCrewMember.Gender.Male : ProtoCrewMember.Gender.Female;
 			KerbalRoster.SetExperienceTrait(protoKerbal, job);
 
@@ -957,6 +956,8 @@ namespace KRPC.SpaceCenter.Services
 				protoKerbal.experienceLevel = 5;
 				protoKerbal.experience = 9999;
 			}
+
+			HighLogic.CurrentGame.CrewRoster.AddCrewMember(protoKerbal);
 		}
 
 		[KRPCProcedure(Nullable=true)]
