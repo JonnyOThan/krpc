@@ -11,6 +11,7 @@ using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
 using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
 using TupleV3 = KRPC.Utils.Tuple<Vector3d, Vector3d>;
 using TupleT3 = KRPC.Utils.Tuple<KRPC.Utils.Tuple<double, double, double>, KRPC.Utils.Tuple<double, double, double>>;
+using KSP.UI.Screens;
 
 namespace KRPC.SpaceCenter.Services
 {
@@ -104,6 +105,18 @@ namespace KRPC.SpaceCenter.Services
             get { return InternalVessel.IsRecoverable; }
         }
 
+		class VesselRecovery : MonoBehaviour
+		{
+			public void LateUpdate()
+			{
+				Utils.Logger.WriteLine("attempting vessel recovery");
+				GameEvents.OnVesselRecoveryRequested.Fire(VesselToRecover.InternalVessel);
+				GameObject.DestroyObject(this.gameObject);
+			}
+
+			public Vessel VesselToRecover;
+		}
+
         /// <summary>
         /// Recover the vessel.
         /// </summary>
@@ -112,7 +125,8 @@ namespace KRPC.SpaceCenter.Services
         {
             if (!Recoverable)
                 throw new InvalidOperationException ("Vessel is not recoverable");
-            GameEvents.OnVesselRecoveryRequested.Fire (InternalVessel);
+			var gameObject = GameObject.Instantiate(new GameObject("VesselRecovery", typeof(VesselRecovery)));
+			gameObject.GetComponent<VesselRecovery>().VesselToRecover = this;
         }
 
         /// <summary>
